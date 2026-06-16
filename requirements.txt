@@ -1,0 +1,31 @@
+# Core
+torch>=2.2          # install the CUDA build on the GPU box: see pytorch.org
+torchvision>=0.17
+numpy>=1.24
+pillow>=10.0
+pyyaml>=6.0
+tqdm>=4.66
+requests>=2.31
+python-dotenv>=1.0
+
+# Stage 1 — SDXL-Turbo + LoRA + InstantID
+diffusers>=0.27
+transformers>=4.40
+accelerate>=0.30
+peft>=0.10          # LoRA
+safetensors>=0.4
+# InstantID / IP-Adapter face identity:
+#   insightface>=0.7 brings the ArcFace antelopev2 pack used for both identity-lock AND eval
+insightface>=0.7
+onnxruntime-gpu>=1.17   # insightface backend on GPU (use onnxruntime on CPU-only boxes)
+
+# Losses / perceptual
+lpips>=0.1.4
+mediapipe>=0.10     # FaceLandmarker for landmark loss + eval (matches the site's detector)
+
+# Stage 2 — student export + serving
+onnx>=1.16
+onnxconverter-common>=1.14   # fp16 conversion
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9

@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+data/faces/
+data/targets/
+data/holdout/
+data/pairs.jsonl
+checkpoints/
+web/model/*.onnx
+out/
+
+.DS_Store

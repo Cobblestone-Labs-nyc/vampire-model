@@ -1,0 +1,75 @@
+# All knobs for the vampire restyle pipeline. Paths are relative to repo root.
+
+project:
+  name: vampire-restyle
+  seed: 1337
+
+data:
+  faces_dir: data/faces            # source faces X (you provide; licensed)
+  targets_dir: data/targets        # teacher vampire outputs Y (generated)
+  pairs_file: data/pairs.jsonl     # {x, y, arcface_cos} per line
+  resolution: 512                  # 512 default; 384 is a cheap latency win for Stage 2
+  license_note: "VERIFY: training faces must be cleared for this use. Prefer CC/FFHQ-style + consent."
+  min_pairs: 2000
+  cull_arcface_cos: 0.55           # teacher pairs below this identity cosine are flagged for cull
+
+# Exact live generation contract (see src/prompts.py for the strings)
+teacher:
+  # The CURRENT live primary engine — the source-of-truth teacher for Stage 1 data.
+  engine: ip-adapter-face-id
+  url: https://fal.run/fal-ai/ip-adapter-face-id
+  model_type: SDXL-v2-plus
+  num_inference_steps: 30
+  num_samples: 1
+  width: 768
+  height: 768
+  # Teacher targets are made at LOW strength so identity is already well-preserved in Y.
+  guidance_scale: 6.0              # mid of the live 5.0–8.0 range
+  img2img_strength: 0.45           # spec 3A: low-ish (0.35–0.5) for geometry-faithful targets
+  timeout_s: 90
+
+# Stage 1 — SDXL-Turbo + vampire LoRA + InstantID (hosted, Deploy B)
+stage1:
+  base_model: stabilityai/sdxl-turbo
+  instantid: true                  # face-identity lock (InstantID / IP-Adapter)
+  num_inference_steps: 4           # few-step turbo
+  lora:
+    rank: 16
+    alpha: 16
+    lr: 1.0e-4
+    train_steps: 3000
+    batch_size: 4
+    out_dir: checkpoints/stage1_lora
+  # The page's 0.30–0.85 "subtle↔dramatic" slider maps here:
+  slider_to_strength: [0.20, 0.45]   # turbo + InstantID wants lower img2img strength than full SDXL
+  slider_to_guidance:  [1.0, 2.5]    # turbo uses low guidance
+
+# Stage 2 — tiny U-Net student distilled from Stage 1 (browser, Deploy A)
+student:
+  arch: unet_small        # 5–25M param encoder-decoder w/ skip connections
+  width_mult: 0.75
+  base_channels: 48
+  film_strength: true     # FiLM-condition on scalar strength so the slider works w/o retrain
+  train_steps: 40000
+  batch_size: 8
+  lr: 2.0e-4
+  out_dir: checkpoints/student
+  losses:                 # weighted sum; identity is the lever (vs INPUT, not target)
+    l1: 1.0
+    lpips: 1.0
+    identity_arcface: 2.0
+    landmark: 1.0
+    adversarial: 0.05     # small PatchGAN term for photoreal sharpness
+
+export:
+  onnx_path: web/model/vampire_student.onnx
+  quantize: int8          # int8 | fp16 | none
+  bench_runtimes: [cuda, cpu, webgpu]
+
+# Acceptance criteria — eval.py enforces these (from the training spec, §2)
+acceptance:
+  arcface_cos_min: 0.65       # input↔output identity retention
+  landmark_rmse_max_px: 6.0   # output landmarks ≈ input landmarks (no head reshape)
+  latency_p95_s_max: 1.0
+  model_size_mb_max: 15.0     # hard cap 30
+  style_human_eval_min: 4.0   # /5 "looks vampiric" on 20-image holdout
