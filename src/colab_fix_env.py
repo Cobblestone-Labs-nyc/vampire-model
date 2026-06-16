@@ -34,10 +34,11 @@ def fix_antelopev2():
     if os.path.isdir(base):
         files = sorted(os.listdir(base))
         print(f"[B] antelopev2 contents: {files}")
-        if any(f.startswith("det_") and f.endswith(".onnx") for f in files):
+        # antelopev2's detector is scrfd_10g_bnkps.onnx (buffalo_l uses det_*.onnx)
+        if any(("scrfd" in f or f.startswith("det_")) and f.endswith(".onnx") for f in files):
             print("[B] OK - detection model present")
         else:
-            print("[B] WARNING - no det_*.onnx found; eval/scoring will still fail")
+            print("[B] WARNING - no detection model (scrfd_*/det_*.onnx) found; eval/scoring will fail")
     else:
         print(f"[B] antelopev2 dir missing ({base}); it downloads on first eval run, "
               "then re-run this script if needed")
